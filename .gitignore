@@ -1,0 +1,38 @@
+# Go
+bin/
+dist/
+*.exe
+*.test
+*.out
+vendor/
+
+# Chat exports / samples / persona
+*.txt
+Modelfile
+*_samples*
+patrik_*.txt
+
+# Training data & artifacts
+/data/
+datasets/
+outputs/
+runs/
+checkpoints/
+adapter*/
+lora*/
+*.gguf
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.onnx
+wandb/
+mlruns/
+.cache/
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+.env

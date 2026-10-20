@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Patrik</title>
+  <style>
+    :root {
+      --bg: #f4f1ea;
+      --panel: #fffdf8;
+      --ink: #1c1917;
+      --muted: #78716c;
+      --you: #1c1917;
+      --patrik: #fff;
+      --accent: #0f766e;
+      --border: #e7e5e4;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: radial-gradient(circle at top left, #faf7f0, var(--bg));
+      color: var(--ink);
+      display: grid;
+      place-items: center;
+      padding: 1.5rem;
+    }
+    .app {
+      width: min(720px, 100%);
+      height: min(820px, 100vh - 3rem);
+      display: flex;
+      flex-direction: column;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 1.25rem;
+      overflow: hidden;
+    }
+    header {
+      padding: 1.25rem 1.5rem 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+    header h1 {
+      margin: 0;
+      font-size: 1.35rem;
+      font-weight: 650;
+    }
+    header p {
+      margin: 0.35rem 0 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+    #log {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1.25rem 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    .msg {
+      max-width: 85%;
+      padding: 0.8rem 1rem;
+      border-radius: 1.1rem;
+      line-height: 1.45;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .msg.user {
+      align-self: flex-end;
+      background: var(--you);
+      color: #fafaf9;
+      border-bottom-right-radius: 0.35rem;
+    }
+    .msg.assistant {
+      align-self: flex-start;
+      background: var(--patrik);
+      border: 1px solid var(--border);
+      border-bottom-left-radius: 0.35rem;
+    }
+    .msg.assistant:empty::after {
+      content: "…";
+      color: var(--muted);
+    }
+    form {
+      display: flex;
+      gap: 0.75rem;
+      padding: 1rem 1.5rem 1.25rem;
+      border-top: 1px solid var(--border);
+    }
+    textarea {
+      flex: 1;
+      resize: none;
+      min-height: 3.2rem;
+      max-height: 8rem;
+      padding: 0.75rem 0.9rem;
+      border: 1px solid var(--border);
+      border-radius: 0.9rem;
+      font: inherit;
+      background: #fff;
+    }
+    button {
+      border: 0;
+      border-radius: 0.9rem;
+      padding: 0 1.2rem;
+      background: var(--accent);
+      color: white;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>Patrik</h1>
+      <p>Your colleague, locally via Ollama.</p>
+    </header>
+    <div id="log" aria-live="polite"></div>
+    <form id="form">
+      <textarea id="input" rows="2" placeholder="Message Patrik…" autofocus></textarea>
+      <button type="submit" id="send">Send</button>
+    </form>
+  </div>
+  <script>
+    const log = document.getElementById("log");
+    const form = document.getElementById("form");
+    const input = document.getElementById("input");
+    const send = document.getElementById("send");
+
+    function addMessage(role, text = "") {
+      const el = document.createElement("div");
+      el.className = `msg ${role}`;
+      el.textContent = text;
+      log.appendChild(el);
+      log.scrollTop = log.scrollHeight;
+      return el;
+    }
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const message = input.value.trim();
+      if (!message) return;
+
+      addMessage("user", message);
+      input.value = "";
+      send.disabled = true;
+      const bubble = addMessage("assistant");
+
+      try {
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message }),
+        });
+        if (!res.ok) {
+          throw new Error(await res.text() || res.statusText);
+        }
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const parts = buffer.split("\n\n");
+          buffer = parts.pop();
+
+          for (const part of parts) {
+            for (const line of part.split("\n")) {
+              if (!line.startsWith("data:")) continue;
+              const data = line.slice(5).trim();
+              if (data === "[DONE]") continue;
+              if (data.startsWith("[ERROR]")) {
+                throw new Error(data.slice(7).trim());
+              }
+              bubble.textContent += JSON.parse(data);
+              log.scrollTop = log.scrollHeight;
+            }
+          }
+        }
+      } catch (err) {
+        bubble.textContent = `Sorry — ${err.message || err}`;
+      } finally {
+        send.disabled = false;
+        input.focus();
+      }
+    });
+
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        form.requestSubmit();
+      }
+    });
+  </script>
+</body>
+</html>
