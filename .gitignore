@@ -6,6 +6,12 @@ dist/
 *.out
 vendor/
 
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
 # Chat exports / samples / persona
 *.txt
 Modelfile
